@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Math Darts</title>
+    <style>
+        body {
+            margin: 0;
+            background: #2c3e50;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-container { position: relative; }
+        #ui {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #problem {
+            font-size: 48px;
+            font-weight: bold;
+            color: #f1c40f;
+            text-shadow: 2px 2px #000;
+        }
+        canvas {
+            background: radial-gradient(#444, #111);
+            border-radius: 50%;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            cursor: crosshair;
+        }
+        .feedback {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+            transition: transform 1s, opacity 1s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="problem">Loading...</div>
+    <div>Score: <span id="score">0</span> | Round: <span id="round">1</span>/10</div>
+</div>
+
+<div id="game-container">
+    <canvas id="dartCanvas"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('dartCanvas');
+const ctx = canvas.getContext('2d');
+const size = 500;
+canvas.width = size;
+canvas.height = size;
+
+const centerX = size / 2;
+const centerY = size / 2;
+const radius = size * 0.45;
+
+// The standard dartboard layout (starting from the top and going clockwise)
+const boardValues = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+
+let currentProblem = { question: "", answer: 0 };
+let score = 0;
+let round = 1;
+
+function generateProblem() {
+    const a = Math.floor(Math.random() * 10) + 1;
+    const b = Math.floor(Math.random() * 10) + 1;
+    const ops = ['+', '-', '*'];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    
+    let ans;
+    if (op === '+') ans = a + b;
+    else if (op === '-') ans = Math.max(a, b) - Math.min(a, b); // Keep it positive
+    else ans = a * b;
+
+    // Ensure answer is on the board (1-20). If not, try again.
+    if (ans > 20 || ans < 1) return generateProblem();
+
+    currentProblem = { question: `${op === '-' ? Math.max(a,b) : a} ${op} ${op === '-' ? Math.min(a,b) : b}`, answer: ans };
+    document.getElementById('problem').innerText = currentProblem.question;
+}
+
+function drawBoard() {
+    ctx.clearRect(0, 0, size, size);
+    
+    // Draw slices
+    const sliceAngle = (Math.PI * 2) / 20;
+    // Offset by half a slice to align 20 at the dead top
+    const startOffset = -Math.PI / 2 - sliceAngle / 2;
+
+    for (let i = 0; i < 20; i++) {
+        const angle = startOffset + i * sliceAngle;
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, angle, angle + sliceAngle);
+        ctx.closePath();
+        
+        ctx.fillStyle = (i % 2 === 0) ? "#111" : "#eee";
+        ctx.fill();
+        ctx.strokeStyle = "#f1c40f";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw Numbers
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle + sliceAngle / 2);
+        ctx.textAlign = "center";
+        ctx.fillStyle = (i % 2 === 0) ? "white" : "black";
+        ctx.font = "bold 20px Arial";
+        ctx.fillText(boardValues[i], radius * 0.85, 8);
+        ctx.restore();
+    }
+
+    // Bullseye
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
+    ctx.fillStyle = "red";
+    ctx.fill();
+    ctx.stroke();
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (round > 10) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - centerX;
+    const y = e.clientY - rect.top - centerY;
+
+    // Calculate Angle
+    let angle = Math.atan2(y, x);
+    // Normalize angle to start from 20 (top)
+    let normalizedAngle = angle + Math.PI / 2 + (Math.PI * 2 / 40);
+    if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+    
+    const sliceIndex = Math.floor((normalizedAngle / (Math.PI * 2)) * 20) % 20;
+    const hitValue = boardValues[sliceIndex];
+
+    checkHit(hitValue, e.clientX, e.clientY);
+});
+
+function checkHit(val, x, y) {
+    const isCorrect = val === currentProblem.answer;
+    if (isCorrect) {
+        score += 10;
+        showFeedback("CORRECT! +10", x, y, "#2ecc71");
+    } else {
+        showFeedback(`WRONG! It was ${currentProblem.answer}`, x, y, "#e74c3c");
+    }
+
+    round++;
+    document.getElementById('score').innerText = score;
+    
+    if (round <= 10) {
+        document.getElementById('round').innerText = round;
+        generateProblem();
+    } else {
+        document.getElementById('problem').innerText = `FINAL SCORE: ${score}`;
+        document.getElementById('status').innerText = "Refresh to play again!";
+    }
+}
+
+function showFeedback(text, x, y, color) {
+    const div = document.createElement('div');
+    div.className = 'feedback';
+    div.innerText = text;
+    div.style.left = x + 'px';
+    div.style.top = y + 'px';
+    div.style.color = color;
+    document.body.appendChild(div);
+
+    setTimeout(() => {
+        div.style.transform = 'translateY(-100px)';
+        div.style.opacity = '0';
+        setTimeout(() => div.remove(), 1000);
+    }, 10);
+}
+
+// Initial Launch
+drawBoard();
+generateProblem();
+</script>
+
+</body>
+</html>
