@@ -19,7 +19,7 @@
         }
         #ui { text-align: center; margin-bottom: 15px; z-index: 10; width: 100%; }
         #problem { font-size: 58px; font-weight: bold; color: #f1c40f; margin: 0; height: 70px; }
-        #sub-info { font-size: 24px; color: #3498db; height: 30px; margin-bottom: 10px; }
+        #sub-info { font-size: 24px; color: #3498db; height: 35px; margin-bottom: 10px; font-weight: bold; }
         #stats { 
             font-size: 22px; 
             background: rgba(255,255,255,0.1); 
@@ -61,13 +61,16 @@ let currentProblem = { question: "", answer: 0, currentSum: 0 };
 let score = 0;
 let round = 1;
 let isThrowing = false;
-let lastHit = { x: 0, y: 0, show: false, scale: 0.5 };
-let stuckDarts = []; // Store multiple darts for accumulator rounds
+let isPaused = false; // Flag to prevent throwing during round transitions
+let stuckDarts = []; 
+
+let dart = { x: 400, y: 700, targetX: 0, targetY: 0, scale: 2.5, speed: 0.08, t: 0 };
 
 function generateProblem() {
     let a, b, ans, op;
     stuckDarts = []; 
     currentProblem.currentSum = 0;
+    isPaused = false;
     
     if (round <= 3) {
         a = Math.floor(Math.random() * 10) + 1;
@@ -78,14 +81,13 @@ function generateProblem() {
         b = Math.floor(Math.random() * 10) + 1;
         ans = a - b; op = "-";
     } else {
-        a = Math.floor(Math.random() * 8) + 4; // e.g. 4 to 12
+        a = Math.floor(Math.random() * 8) + 4; 
         b = Math.floor(Math.random() * 8) + 4;
         ans = a * b; op = "×";
     }
 
     currentProblem.question = `${a} ${op} ${b}`;
     currentProblem.answer = ans;
-    
     updateUI();
 }
 
@@ -101,9 +103,12 @@ function updateUI(msg = "") {
     }
 
     if (round > 6) {
-        subEl.innerText = `Current Total: ${currentProblem.currentSum} | Need: ${currentProblem.answer - currentProblem.currentSum}`;
+        const remaining = currentProblem.answer - currentProblem.currentSum;
+        subEl.innerText = `Current Total: ${currentProblem.currentSum} | Need: ${remaining}`;
+        subEl.style.color = "#3498db";
     } else {
-        subEl.innerText = "Single hit required!";
+        subEl.innerText = "Hit the correct segment!";
+        subEl.style.color = "#95a5a6";
     }
 }
 
@@ -114,14 +119,12 @@ function drawBoard() {
     for (let i = 0; i < 20; i++) {
         const angle = startOffset + i * sliceAngle;
         
-        // Slices
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.arc(centerX, centerY, boardRadius, angle, angle + sliceAngle);
         ctx.fillStyle = (i % 2 === 0) ? "#1a1a1a" : "#eee";
         ctx.fill();
 
-        // Rings
         const drawRing = (r, thickness, color1, color2) => {
             ctx.beginPath();
             ctx.arc(centerX, centerY, r, angle, angle + sliceAngle);
@@ -130,10 +133,9 @@ function drawBoard() {
             ctx.fill();
         };
 
-        drawRing(boardRadius, 15, "#27ae60", "#e74c3c"); // Double
-        drawRing(140, 15, "#27ae60", "#e74c3c"); // Triple
+        drawRing(boardRadius, 15, "#27ae60", "#e74c3c"); 
+        drawRing(140, 15, "#27ae60", "#e74c3c"); 
 
-        // Numbers
         ctx.save();
         const textAngle = angle + sliceAngle / 2;
         const tx = centerX + Math.cos(textAngle) * (boardRadius + 25);
@@ -147,7 +149,6 @@ function drawBoard() {
         ctx.restore();
     }
     
-    // Bullseye
     ctx.beginPath();
     ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
     ctx.fillStyle = "#e74c3c";
@@ -173,7 +174,7 @@ function drawDart(x, y, scale) {
 }
 
 canvas.addEventListener('mousedown', (e) => {
-    if (isThrowing || round > 10 || lastHit.show) return;
+    if (isThrowing || isPaused || round > 10) return;
     const rect = canvas.getBoundingClientRect();
     dart.targetX = e.clientX - rect.left;
     dart.targetY = e.clientY - rect.top;
@@ -185,14 +186,17 @@ function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBoard();
 
-    // Draw all darts stuck in the board for this round
-    stuckDarts.forEach(d => drawDart(d.x, d.y, d.scale));
+    // Render all previously hit darts
+    stuckDarts.forEach(d => {
+        drawDart(d.x, d.y, d.scale);
+    });
 
     if (isThrowing) {
         dart.t += 0.08;
         let curX = centerX + (dart.targetX - centerX) * dart.t;
         let curY = 700 + (dart.targetY - 700) * dart.t;
         let curScale = 2.5 - (dart.t * 2.0);
+        
         drawDart(curX, curY, curScale);
 
         if (dart.t >= 1) {
@@ -208,6 +212,9 @@ function processHit(hx, hy, scale) {
     const dy = hy - centerY;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
+    // Add to the list of visible darts immediately
+    stuckDarts.push({x: hx, y: hy, scale: scale});
+
     if (dist > boardRadius) {
         finishRound("MISSED BOARD!");
         return;
@@ -221,44 +228,41 @@ function processHit(hx, hy, scale) {
     let hitPoints = boardValues[sliceIndex];
     if (dist >= boardRadius - 15) hitPoints *= 2;
     else if (dist >= 125 && dist <= 140) hitPoints *= 3;
-    if (dist <= 15) hitPoints = 25; // Simple Bullseye
+    if (dist <= 15) hitPoints = 25; 
 
     currentProblem.currentSum += hitPoints;
-    stuckDarts.push({x: hx, y: hy, scale: scale});
 
     if (round <= 6) {
-        // Rounds 1-6: Standard single hit check
         if (hitPoints === currentProblem.answer) {
             score += 20;
-            finishRound("PERFECT!");
+            finishRound("PERFECT! +20");
         } else {
             finishRound(`WRONG! Hit ${hitPoints}`);
         }
     } else {
-        // Rounds 7-10: Accumulator check
         if (currentProblem.currentSum === currentProblem.answer) {
             score += 50;
             finishRound("TARGET REACHED! +50");
         } else if (currentProblem.currentSum > currentProblem.answer) {
             finishRound("BUST! TOO HIGH");
         } else {
-            updateUI(); // Keep throwing
+            updateUI(); // Round continues, more darts allowed
         }
     }
 }
 
 function finishRound(msg) {
-    lastHit.show = true; // Temporary pause
+    isPaused = true; 
     updateUI(msg);
     setTimeout(() => {
-        lastHit.show = false;
         round++;
         if (round <= 10) {
             document.getElementById('round').innerText = round;
             document.getElementById('score').innerText = score;
             generateProblem();
         } else {
-            updateUI("GAME OVER!");
+            document.getElementById('problem').innerText = "GAME OVER!";
+            document.getElementById('sub-info').innerText = `Final Score: ${score}`;
         }
     }, 2000);
 }
