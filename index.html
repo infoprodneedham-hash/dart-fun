@@ -1,31 +1,228 @@
-// Replace your generateProblem and processHit functions with these updated versions:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Math Darts: Master Edition</title>
+    <style>
+        body {
+            margin: 0;
+            background: #121212;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        #ui { text-align: center; margin-bottom: 15px; z-index: 10; }
+        #problem { 
+            font-size: 64px; 
+            font-weight: bold;
+            color: #f1c40f; 
+            text-shadow: 0px 4px 10px rgba(0,0,0,0.5);
+            margin: 0;
+            height: 80px;
+        }
+        #stats { 
+            font-size: 22px; 
+            margin-top: 10px; 
+            background: rgba(255,255,255,0.1); 
+            padding: 8px 25px; 
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        canvas { 
+            background: radial-gradient(circle, #444 0%, #000 100%); 
+            border-radius: 50%; 
+            box-shadow: 0 0 100px rgba(0,0,0,0.8), 0 0 20px rgba(241, 196, 15, 0.2);
+            border: 10px solid #222;
+        }
+        .highlight { color: #f1c40f; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="problem">Preparing...</div>
+    <div id="stats">Score: <span id="score" class="highlight">0</span> | Round: <span id="round" class="highlight">1</span>/10</div>
+</div>
+
+<canvas id="dartCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('dartCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 700;
+
+const centerX = canvas.width / 2;
+const centerY = canvas.height / 2;
+const boardRadius = 250;
+const boardValues = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+
+let currentProblem = { question: "", answer: 0 };
+let score = 0;
+let round = 1;
+let isThrowing = false;
+let lastHit = { x: 0, y: 0, show: false, scale: 0.5 };
+
+// Dart Physics
+let dart = { x: 400, y: 700, targetX: 0, targetY: 0, scale: 2.5, speed: 0.07, t: 0 };
 
 function generateProblem() {
     let a, b, ans, op;
     
     if (round <= 3) {
-        // Simple Addition
+        // Rounds 1-3: Simple Addition (Sums up to 20)
         a = Math.floor(Math.random() * 10) + 1;
         b = Math.floor(Math.random() * 10) + 1;
         ans = a + b;
         op = "+";
     } else if (round <= 6) {
-        // Subtraction (ensure positive result)
-        a = Math.floor(Math.random() * 20) + 5;
+        // Rounds 4-6: Subtraction
+        a = Math.floor(Math.random() * 15) + 6;
         b = Math.floor(Math.random() * a);
         ans = a - b;
         op = "-";
     } else {
-        // Multiplication
-        a = Math.floor(Math.random() * 12) + 1;
-        b = Math.floor(Math.random() * 12) + 1;
+        // Rounds 7-10: Multiplication (Up to 12s)
+        a = Math.floor(Math.random() * 11) + 2;
+        b = Math.floor(Math.random() * 11) + 2;
         ans = a * b;
         op = "×";
     }
 
     currentProblem = { question: `${a} ${op} ${b} = ?`, answer: ans };
-    document.getElementById('problem').innerText = currentProblem.question;
-    document.getElementById('problem').style.color = "#f1c40f";
+    const probEl = document.getElementById('problem');
+    probEl.innerText = currentProblem.question;
+    probEl.style.color = "#f1c40f";
+}
+
+function drawBoard() {
+    const sliceAngle = (Math.PI * 2) / 20;
+    const startOffset = -Math.PI / 2 - sliceAngle / 2;
+
+    // Outer Ring (Double) and Inner Ring (Triple) visual areas
+    for (let i = 0; i < 20; i++) {
+        const angle = startOffset + i * sliceAngle;
+        
+        // Base Slices
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, boardRadius, angle, angle + sliceAngle);
+        ctx.fillStyle = (i % 2 === 0) ? "#1e1e1e" : "#ecf0f1";
+        ctx.fill();
+        ctx.strokeStyle = "#444";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Triple Ring (Middle)
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 150, angle, angle + sliceAngle);
+        ctx.arc(centerX, centerY, 135, angle + sliceAngle, angle, true);
+        ctx.fillStyle = (i % 2 === 0) ? "#27ae60" : "#e74c3c";
+        ctx.fill();
+
+        // Double Ring (Outer)
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, boardRadius, angle, angle + sliceAngle);
+        ctx.arc(centerX, centerY, boardRadius - 15, angle + sliceAngle, angle, true);
+        ctx.fillStyle = (i % 2 === 0) ? "#27ae60" : "#e74c3c";
+        ctx.fill();
+
+        // Fixed Orientation Numbers
+        ctx.save();
+        const textAngle = angle + sliceAngle / 2;
+        const textDist = boardRadius + 30; // Move numbers outside the board slightly
+        const tx = centerX + Math.cos(textAngle) * textDist;
+        const ty = centerY + Math.sin(textAngle) * textDist;
+        
+        ctx.translate(tx, ty);
+        ctx.fillStyle = "white";
+        ctx.font = "bold 24px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(boardValues[i], 0, 0);
+        ctx.restore();
+    }
+    
+    // Bullseye
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 20, 0, Math.PI * 2);
+    ctx.fillStyle = "#27ae60"; // Outer Bull
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 10, 0, Math.PI * 2);
+    ctx.fillStyle = "#e74c3c"; // Inner Bull
+    ctx.fill();
+}
+
+function drawDart(x, y, scale) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    
+    // Shadow
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(5, 45, 10, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = "#7f8c8d";
+    ctx.fillRect(-3, 0, 6, 40);
+    // Fins
+    ctx.fillStyle = "#2980b9";
+    ctx.beginPath();
+    ctx.moveTo(0, 35); ctx.lineTo(-15, 60); ctx.lineTo(15, 60);
+    ctx.fill();
+    // Tip
+    ctx.strokeStyle = "#bdc3c7";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(0, -20);
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if (isThrowing || round > 10 || lastHit.show) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    dart.targetX = e.clientX - rect.left;
+    dart.targetY = e.clientY - rect.top;
+    dart.t = 0;
+    isThrowing = true;
+});
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBoard();
+
+    if (lastHit.show) {
+        drawDart(lastHit.x, lastHit.y, lastHit.scale);
+    }
+
+    if (isThrowing) {
+        dart.t += dart.speed;
+        // Ease-out trajectory
+        let currentX = centerX + (dart.targetX - centerX) * dart.t;
+        let currentY = 700 + (dart.targetY - 700) * dart.t;
+        let currentScale = 2.5 - (dart.t * 2.0);
+
+        drawDart(currentX, currentY, currentScale);
+
+        if (dart.t >= 1) {
+            isThrowing = false;
+            processHit(dart.targetX, dart.targetY, currentScale);
+        }
+    }
+
+    requestAnimationFrame(animate);
 }
 
 function processHit(hx, hy, finalScale) {
@@ -34,35 +231,43 @@ function processHit(hx, hy, finalScale) {
     const dist = Math.sqrt(dx*dx + dy*dy);
     
     lastHit = { x: hx, y: hy, show: true, scale: finalScale };
+    const probEl = document.getElementById('problem');
 
     if (dist > boardRadius) {
-        document.getElementById('problem').innerText = "MISS!";
-        document.getElementById('problem').style.color = "#95a5a6";
+        probEl.innerText = "MISS! (OUT OF BOUNDS)";
+        probEl.style.color = "#bdc3c7";
     } else {
-        // Calculate the slice hit
         let angle = Math.atan2(dy, dx);
         let normalizedAngle = angle + Math.PI / 2 + (Math.PI * 2 / 40);
         if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+        
         const sliceIndex = Math.floor((normalizedAngle / (Math.PI * 2)) * 20) % 20;
         const boardValue = boardValues[sliceIndex];
 
-        // Scoring Modifiers (Standard Dartboard distances)
+        // Multiplier detection
         let multiplier = 1;
-        if (dist > 200 && dist < 220) multiplier = 2; // Double Ring
-        if (dist > 120 && dist < 140) multiplier = 3; // Triple Ring
-        if (dist < 15) { // Bullseye
-            score += 50; 
-            document.getElementById('problem').innerText = "BULLSEYE! +50";
-            document.getElementById('problem').style.color = "#2ecc71";
+        let zone = "";
+        if (dist >= boardRadius - 15 && dist <= boardRadius) {
+            multiplier = 2;
+            zone = "DOUBLE! ";
+        } else if (dist >= 135 && dist <= 150) {
+            multiplier = 3;
+            zone = "TRIPLE! ";
+        }
+
+        if (dist <= 20) {
+            // Bullseye is a wild card - worth massive points regardless of the problem
+            score += 50;
+            probEl.innerText = "BULLSEYE! +50";
+            probEl.style.color = "#2ecc71";
         } else if (boardValue === currentProblem.answer) {
             let points = 10 * multiplier;
             score += points;
-            let bonusText = multiplier > 1 ? ` (${multiplier}x Bonus!)` : "";
-            document.getElementById('problem').innerText = `CORRECT! +${points}${bonusText}`;
-            document.getElementById('problem').style.color = "#2ecc71";
+            probEl.innerText = `${zone}CORRECT! +${points}`;
+            probEl.style.color = "#2ecc71";
         } else {
-            document.getElementById('problem').innerText = `WRONG! Hit ${boardValue}`;
-            document.getElementById('problem').style.color = "#e74c3c";
+            probEl.innerText = `HIT ${boardValue} - WRONG!`;
+            probEl.style.color = "#e74c3c";
         }
     }
 
@@ -75,8 +280,15 @@ function processHit(hx, hy, finalScale) {
             document.getElementById('round').innerText = round;
             generateProblem();
         } else {
-            document.getElementById('problem').innerText = `GAME OVER! FINAL: ${score}`;
-            document.getElementById('problem').style.color = "#f1c40f";
+            probEl.innerText = `GAME OVER! FINAL: ${score}`;
+            probEl.style.color = "#f1c40f";
         }
     }, 2000);
 }
+
+// Start Game
+generateProblem();
+animate();
+</script>
+</body>
+</html>
