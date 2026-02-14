@@ -1,189 +1,82 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>3D Math Darts</title>
-    <style>
-        body {
-            margin: 0;
-            background: #1a1a1a;
-            color: white;
-            font-family: 'Segoe UI', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-            cursor: crosshair;
-        }
-        #ui { text-align: center; margin-bottom: 10px; z-index: 10; }
-        #problem { font-size: 52px; color: #f1c40f; text-shadow: 3px 3px #000; }
-        canvas { background: radial-gradient(#333, #000); border-radius: 10px; }
-        #stats { font-size: 20px; margin-top: 10px; }
-    </style>
-</head>
-<body>
-
-<div id="ui">
-    <div id="problem">Loading...</div>
-    <div id="stats">Score: <span id="score">0</span> | Round: <span id="round">1</span>/10</div>
-</div>
-
-<canvas id="dartCanvas"></canvas>
-
-<script>
-const canvas = document.getElementById('dartCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = 800;
-canvas.height = 600;
-
-const centerX = canvas.width / 2;
-const centerY = canvas.height / 2 - 50;
-const boardRadius = 220;
-const boardValues = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
-
-let currentProblem = { question: "", answer: 0 };
-let score = 0;
-let round = 1;
-let isThrowing = false;
-
-// Dart Object
-let dart = { x: 400, y: 600, targetX: 0, targetY: 0, scale: 2, speed: 0.05, t: 0 };
+// Replace your generateProblem and processHit functions with these updated versions:
 
 function generateProblem() {
-    const a = Math.floor(Math.random() * 10) + 1;
-    const b = Math.floor(Math.random() * 10) + 1;
-    const ans = a + b; // Simple addition for this demo
-    if (ans > 20) return generateProblem();
+    let a, b, ans, op;
+    
+    if (round <= 3) {
+        // Simple Addition
+        a = Math.floor(Math.random() * 10) + 1;
+        b = Math.floor(Math.random() * 10) + 1;
+        ans = a + b;
+        op = "+";
+    } else if (round <= 6) {
+        // Subtraction (ensure positive result)
+        a = Math.floor(Math.random() * 20) + 5;
+        b = Math.floor(Math.random() * a);
+        ans = a - b;
+        op = "-";
+    } else {
+        // Multiplication
+        a = Math.floor(Math.random() * 12) + 1;
+        b = Math.floor(Math.random() * 12) + 1;
+        ans = a * b;
+        op = "×";
+    }
 
-    currentProblem = { question: `${a} + ${b} = ?`, answer: ans };
+    currentProblem = { question: `${a} ${op} ${b} = ?`, answer: ans };
     document.getElementById('problem').innerText = currentProblem.question;
+    document.getElementById('problem').style.color = "#f1c40f";
 }
 
-function drawBoard() {
-    const sliceAngle = (Math.PI * 2) / 20;
-    const startOffset = -Math.PI / 2 - sliceAngle / 2;
-
-    for (let i = 0; i < 20; i++) {
-        const angle = startOffset + i * sliceAngle;
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.arc(centerX, centerY, boardRadius, angle, angle + sliceAngle);
-        ctx.fillStyle = (i % 2 === 0) ? "#1e1e1e" : "#f5f5f5";
-        ctx.fill();
-        ctx.strokeStyle = "#333";
-        ctx.stroke();
-
-        // Numbers
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(angle + sliceAngle / 2);
-        ctx.fillStyle = (i % 2 === 0) ? "white" : "red";
-        ctx.font = "bold 20px Arial";
-        ctx.fillText(boardValues[i], boardRadius - 30, 7);
-        ctx.restore();
-    }
-    // Bullseye
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
-    ctx.fillStyle = "red";
-    ctx.fill();
-}
-
-function drawDart(x, y, scale) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-    
-    // Dart Body
-    ctx.fillStyle = "#555";
-    ctx.fillRect(-2, 0, 4, 40);
-    // Fins
-    ctx.fillStyle = "cyan";
-    ctx.beginPath();
-    ctx.moveTo(0, 40); ctx.lineTo(-10, 55); ctx.lineTo(10, 55);
-    ctx.fill();
-    // Tip
-    ctx.strokeStyle = "silver";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0); ctx.lineTo(0, -10);
-    ctx.stroke();
-    
-    ctx.restore();
-}
-
-canvas.addEventListener('mousedown', (e) => {
-    if (isThrowing || round > 10) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    dart.targetX = e.clientX - rect.left;
-    dart.targetY = e.clientY - rect.top;
-    dart.x = centerX;
-    dart.y = canvas.height;
-    dart.t = 0;
-    isThrowing = true;
-});
-
-function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBoard();
-
-    if (isThrowing) {
-        dart.t += dart.speed;
-        // Linear interpolation for X and Y
-        let currentX = centerX + (dart.targetX - centerX) * dart.t;
-        let currentY = canvas.height + (dart.targetY - canvas.height) * dart.t;
-        let currentScale = 2 - (dart.t * 1.5); // Shrink as it goes "into" the screen
-
-        drawDart(currentX, currentY, currentScale);
-
-        if (dart.t >= 1) {
-            isThrowing = false;
-            processHit(dart.targetX, dart.targetY);
-        }
-    }
-
-    requestAnimationFrame(animate);
-}
-
-function processHit(hx, hy) {
+function processHit(hx, hy, finalScale) {
     const dx = hx - centerX;
     const dy = hy - centerY;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    if (dist > boardRadius) return; // Missed the board
+    lastHit = { x: hx, y: hy, show: true, scale: finalScale };
 
-    let angle = Math.atan2(dy, dx);
-    let normalizedAngle = angle + Math.PI / 2 + (Math.PI * 2 / 40);
-    if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
-    
-    const sliceIndex = Math.floor((normalizedAngle / (Math.PI * 2)) * 20) % 20;
-    const hitValue = boardValues[sliceIndex];
-
-    if (hitValue === currentProblem.answer) {
-        score += 10;
-        document.getElementById('problem').innerText = "BULLSEYE!";
+    if (dist > boardRadius) {
+        document.getElementById('problem').innerText = "MISS!";
+        document.getElementById('problem').style.color = "#95a5a6";
     } else {
-        document.getElementById('problem').innerText = "MISSED!";
+        // Calculate the slice hit
+        let angle = Math.atan2(dy, dx);
+        let normalizedAngle = angle + Math.PI / 2 + (Math.PI * 2 / 40);
+        if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
+        const sliceIndex = Math.floor((normalizedAngle / (Math.PI * 2)) * 20) % 20;
+        const boardValue = boardValues[sliceIndex];
+
+        // Scoring Modifiers (Standard Dartboard distances)
+        let multiplier = 1;
+        if (dist > 200 && dist < 220) multiplier = 2; // Double Ring
+        if (dist > 120 && dist < 140) multiplier = 3; // Triple Ring
+        if (dist < 15) { // Bullseye
+            score += 50; 
+            document.getElementById('problem').innerText = "BULLSEYE! +50";
+            document.getElementById('problem').style.color = "#2ecc71";
+        } else if (boardValue === currentProblem.answer) {
+            let points = 10 * multiplier;
+            score += points;
+            let bonusText = multiplier > 1 ? ` (${multiplier}x Bonus!)` : "";
+            document.getElementById('problem').innerText = `CORRECT! +${points}${bonusText}`;
+            document.getElementById('problem').style.color = "#2ecc71";
+        } else {
+            document.getElementById('problem').innerText = `WRONG! Hit ${boardValue}`;
+            document.getElementById('problem').style.color = "#e74c3c";
+        }
     }
 
     round++;
     document.getElementById('score').innerText = score;
     
     setTimeout(() => {
+        lastHit.show = false;
         if (round <= 10) {
             document.getElementById('round').innerText = round;
             generateProblem();
         } else {
-            document.getElementById('problem').innerText = "GAME OVER!";
+            document.getElementById('problem').innerText = `GAME OVER! FINAL: ${score}`;
+            document.getElementById('problem').style.color = "#f1c40f";
         }
-    }, 1000);
+    }, 2000);
 }
-
-generateProblem();
-animate();
-</script>
-</body>
-</html>
