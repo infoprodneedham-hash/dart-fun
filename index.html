@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>3D Math Darts: Accumulator Edition</title>
+    <title>3D Math Darts: Stealth Edition</title>
     <style>
         body {
             margin: 0;
@@ -18,7 +18,7 @@
             cursor: crosshair;
         }
         #ui { text-align: center; margin-bottom: 15px; z-index: 10; width: 100%; }
-        #problem { font-size: 58px; font-weight: bold; color: #f1c40f; margin: 0; height: 70px; }
+        #problem { font-size: 64px; font-weight: bold; color: #f1c40f; margin: 0; height: 80px; }
         #sub-info { font-size: 24px; color: #3498db; height: 35px; margin-bottom: 10px; font-weight: bold; }
         #stats { 
             font-size: 22px; 
@@ -39,7 +39,7 @@
 <body>
 
 <div id="ui">
-    <div id="problem">Preparing...</div>
+    <div id="problem">Loading...</div>
     <div id="sub-info"></div>
     <div id="stats">Score: <span id="score" class="highlight">0</span> | Round: <span id="round" class="highlight">1</span>/10</div>
 </div>
@@ -61,7 +61,7 @@ let currentProblem = { question: "", answer: 0, currentSum: 0 };
 let score = 0;
 let round = 1;
 let isThrowing = false;
-let isPaused = false; // Flag to prevent throwing during round transitions
+let isPaused = false; 
 let stuckDarts = []; 
 
 let dart = { x: 400, y: 700, targetX: 0, targetY: 0, scale: 2.5, speed: 0.08, t: 0 };
@@ -98,16 +98,15 @@ function updateUI(msg = "") {
     if (msg) {
         probEl.innerText = msg;
     } else {
-        probEl.innerText = `${currentProblem.question} = ${currentProblem.answer}`;
+        probEl.innerText = `${currentProblem.question} = ?`;
         probEl.style.color = "#f1c40f";
     }
 
     if (round > 6) {
-        const remaining = currentProblem.answer - currentProblem.currentSum;
-        subEl.innerText = `Current Total: ${currentProblem.currentSum} | Need: ${remaining}`;
+        subEl.innerText = `Current Total: ${currentProblem.currentSum}`;
         subEl.style.color = "#3498db";
     } else {
-        subEl.innerText = "Hit the correct segment!";
+        subEl.innerText = "Single hit required!";
         subEl.style.color = "#95a5a6";
     }
 }
@@ -186,7 +185,6 @@ function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBoard();
 
-    // Render all previously hit darts
     stuckDarts.forEach(d => {
         drawDart(d.x, d.y, d.scale);
     });
@@ -212,7 +210,6 @@ function processHit(hx, hy, scale) {
     const dy = hy - centerY;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    // Add to the list of visible darts immediately
     stuckDarts.push({x: hx, y: hy, scale: scale});
 
     if (dist > boardRadius) {
@@ -233,20 +230,20 @@ function processHit(hx, hy, scale) {
     currentProblem.currentSum += hitPoints;
 
     if (round <= 6) {
-        if (hitPoints === currentProblem.answer) {
+        if (currentProblem.currentSum === currentProblem.answer) {
             score += 20;
-            finishRound("PERFECT! +20");
+            finishRound(`CORRECT! It was ${currentProblem.answer}`);
         } else {
-            finishRound(`WRONG! Hit ${hitPoints}`);
+            finishRound(`WRONG! Total was ${currentProblem.answer}`);
         }
     } else {
         if (currentProblem.currentSum === currentProblem.answer) {
             score += 50;
-            finishRound("TARGET REACHED! +50");
+            finishRound(`PERFECT! ${currentProblem.answer} reached!`);
         } else if (currentProblem.currentSum > currentProblem.answer) {
-            finishRound("BUST! TOO HIGH");
+            finishRound(`BUST! You hit ${currentProblem.currentSum}, target was ${currentProblem.answer}`);
         } else {
-            updateUI(); // Round continues, more darts allowed
+            updateUI(); 
         }
     }
 }
@@ -264,7 +261,7 @@ function finishRound(msg) {
             document.getElementById('problem').innerText = "GAME OVER!";
             document.getElementById('sub-info').innerText = `Final Score: ${score}`;
         }
-    }, 2000);
+    }, 2500);
 }
 
 generateProblem();
